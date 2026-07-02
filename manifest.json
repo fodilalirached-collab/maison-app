@@ -2,7 +2,7 @@
   "name": "Maison",
   "short_name": "Maison",
   "description": "Notre app maison",
-  "start_url": "/maison-app/maison.html",
+  "start_url": "/maison.html",
   "display": "standalone",
   "background_color": "#f7f7f5",
   "theme_color": "#1D9E75",
