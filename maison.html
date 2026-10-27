@@ -87,6 +87,10 @@ select{cursor:pointer}
 .k-q{font-size:14px;font-weight:600;color:var(--text)}
 .k-a{font-size:13px;color:var(--text2);margin-top:4px;line-height:1.4}
 .k-header{display:flex;justify-content:space-between;align-items:flex-start}
+.k-text{font-size:14px;color:var(--text);line-height:1.45;white-space:pre-wrap;flex:1;min-width:0;overflow-wrap:anywhere}
+.k-text b{font-weight:600}
+.k-meta{font-size:11px;color:var(--text3);margin-top:4px}
+#k-search{width:100%;margin-bottom:10px}
 .chat-wrap{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
 .bubble-row{display:flex;gap:8px;align-items:flex-end}
 .bubble-row.user{flex-direction:row-reverse}
@@ -289,14 +293,14 @@ select{cursor:pointer}
 </div>
 
 <div class="screen" id="s-maison">
-  <div class="screen-title">🏠 Savoir maison <span class="sync-badge" id="sync-maison">...</span></div>
+  <div class="screen-title">🏠 Infos maison <span class="sync-badge" id="sync-maison">...</span></div>
   <div class="add-2col">
     <div class="fields">
-      <input type="text" id="k-q" placeholder="Question (ex: où sont les poêles ?)" autocomplete="off"/>
-      <input type="text" id="k-a" placeholder="Réponse..." autocomplete="off"/>
+      <textarea id="k-text" rows="2" placeholder="Une info à retenir (ex : les cartons se sortent le mardi)"></textarea>
     </div>
     <button class="btn-round" onclick="addK()" style="align-self:flex-end"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
   </div>
+  <input type="search" id="k-search" placeholder="🔍 Chercher une info…" autocomplete="off"/>
   <div id="k-list"></div>
 </div>
 
@@ -709,13 +713,25 @@ function renderNotes(){
 }
 window.addNote=function(){const t=document.getElementById('note-title').value.trim();const b=document.getElementById('note-body').value.trim();if(!t&&!b)return;fbSet(`notes/${uid()}`,{title:t||'Sans titre',body:b,date:fmt(new Date()),createdAt:Date.now()});document.getElementById('note-title').value='';document.getElementById('note-body').value='';};
 window.delNote=function(id){fbDel(`notes/${id}`);};
+function kText(k){return k.text||[k.q,k.a].filter(Boolean).join(' ');}
+function kNorm(s){return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/œ/g,'oe');}
 function renderK(){
   const el=document.getElementById('k-list');
-  if(!state.knowledge.length){el.innerHTML=`<div class="empty"><div class="empty-icon">🏠</div>Ajoutez vos premières infos maison !</div>`;return;}
-  el.innerHTML=state.knowledge.map(k=>`<div class="k-card"><div class="k-header"><div class="k-q">${esc(k.q)}</div><button class="del" onclick="delK('${k.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button></div><div class="k-a">${esc(k.a)}</div></div>`).join('');
+  if(!state.knowledge.length){el.innerHTML=`<div class="empty"><div class="empty-icon">🏠</div>Ajoutez vos premières infos : où sont rangées les choses, les jours de poubelles, les codes…</div>`;return;}
+  const q=kNorm(document.getElementById('k-search').value.trim());
+  const words=q.split(/\s+/).filter(Boolean);
+  const items=state.knowledge.filter(k=>{const t=kNorm(kText(k));return words.every(w=>t.includes(w));}).slice().sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
+  if(!items.length){el.innerHTML=`<div class="empty">Aucune info ne correspond.</div>`;return;}
+  el.innerHTML=items.map(k=>{
+    const body=k.text?esc(k.text):`<b>${esc(k.q||'')}</b> ${esc(k.a||'')}`;
+    const when=k.updatedAt||k.createdAt;
+    const meta=[k.addedBy?`ajouté par ${esc(k.addedBy)}`:'',when?new Date(when).toLocaleDateString('fr-FR'):''].filter(Boolean).join(' · ');
+    return `<div class="k-card"><div class="k-header"><div class="k-text">${body}</div><button class="del" onclick="delK('${k.id}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button></div>${meta?`<div class="k-meta">${meta}</div>`:''}</div>`;
+  }).join('');
 }
-window.addK=function(){const q=document.getElementById('k-q').value.trim();const a=document.getElementById('k-a').value.trim();if(!q||!a)return;fbSet(`knowledge/${uid()}`,{q,a,createdAt:Date.now()});document.getElementById('k-q').value='';document.getElementById('k-a').value='';};
-document.getElementById('k-a').addEventListener('keydown',e=>{if(e.key==='Enter')window.addK();});
+window.addK=function(){const ta=document.getElementById('k-text');const text=ta.value.trim();if(!text)return;fbSet(`knowledge/${uid()}`,{text,createdAt:Date.now()});ta.value='';};
+document.getElementById('k-text').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();window.addK();}});
+document.getElementById('k-search').addEventListener('input',renderK);
 window.delK=function(id){fbDel(`knowledge/${id}`);};
 window.saveDriveLink=function(){const v=document.getElementById('drive-link-input').value.trim();if(!v)return;state.driveLink=v;fbSet('config/main',{driveLink:v});renderDriveLink();};
 window.changeDriveLink=function(){state.driveLink='';document.getElementById('drive-link-display').innerHTML='';document.getElementById('drive-setup-box').style.display='';document.getElementById('drive-link-input').value='';};
@@ -998,7 +1014,7 @@ function buildContext(){
   const todos=Object.entries(state.todo.items).map(([l,items])=>`"${l}": ${items.map(i=>`[${i.done?'fait':'à faire'}][${i.person==='p1'?n1:i.person==='p2'?n2:'les deux'}] ${i.label}${i.note?' (note: '+i.note+')':''}`).join(' | ')}`).join('\n');
   const courses=Object.entries(state.courses.items).map(([l,items])=>`"${l}": ${items.map(i=>(i.done?'[coché] ':'[à acheter] ')+i.label).join(' | ')}`).join('\n');
   const notes=state.notes.map(n=>`${n.title}: ${n.body}`).join('\n');
-  const knowledge=state.knowledge.map(k=>`Q: ${k.q} → ${k.a}`).join('\n');
+  const knowledge=state.knowledge.map(k=>`- ${kText(k)}`).join('\n');
   const history=state.history.slice(0,50).map(h=>`[${h.completedDate}][${h.type==='todo'?'tâche':'course'}][${h.list}]${h.person?'['+pName(h.person)+']':''} ${h.label}`).join('\n');
   // Valise : uniquement les voyages communs. Les voyages privés (les miens comme
   // les siens) ne quittent jamais l'appareil : rien de privé ne part vers l'API.
